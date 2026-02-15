@@ -201,7 +201,25 @@ void calculatePID()
   }
   else
   {
-    driveMotors(0, 0);
+    // The bot has lost the line (count == 0).
+    // Use a controlled search speed to prevent overshooting the line.
+    int searchSpeed = BASE_SPEED; 
+
+    if (lastError > 0) 
+    {
+      // Line was last seen on the right. Hard spin right.
+      driveMotors(searchSpeed, -searchSpeed);
+    } 
+    else if (lastError < 0) 
+    {
+      // Line was last seen on the left. Hard spin left.
+      driveMotors(-searchSpeed, searchSpeed);
+    }
+    else
+    {
+      // If it never saw the line at all (lastError is exactly 0), just stop.
+      driveMotors(0, 0);
+    }
   }
 }
 
