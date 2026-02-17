@@ -1,4 +1,3 @@
-// PID logic goes here
 #include "BluetoothSerial.h"
 
 BluetoothSerial SerialBT;
@@ -127,46 +126,70 @@ void calibrateWhite() {
 }
 
 // ---------------------------------
+void handleCommand(String cmd) {
+
+  if (cmd.startsWith("KP=")) {
+    Kp = cmd.substring(3).toFloat();
+    SerialBT.println("ACK:KP=" + String(Kp));
+  }
+
+  else if (cmd.startsWith("KI=")) {
+    Ki = cmd.substring(3).toFloat();
+    SerialBT.println("ACK:KI=" + String(Ki));
+  }
+
+  else if (cmd.startsWith("KD=")) {
+    Kd = cmd.substring(3).toFloat();
+    SerialBT.println("ACK:KD=" + String(Kd));
+  }
+
+  else if (cmd.startsWith("BASE=")) {
+    BASE_SPEED = cmd.substring(5).toInt();
+    SerialBT.println("ACK:BASE=" + String(BASE_SPEED));
+  }
+
+  else if (cmd.startsWith("MAX=")) {
+    MAX_SPEED = cmd.substring(4).toInt();
+    SerialBT.println("ACK:MAX=" + String(MAX_SPEED));
+  }
+
+  else if (cmd == "RUN=1") {
+    startRun();
+    SerialBT.println("ACK:RUN=1");
+  }
+
+  else if (cmd == "RUN=0") {
+    stopRun();
+    SerialBT.println("ACK:RUN=0");
+  }
+
+  else if (cmd == "CAL=BLACK") {
+    calibrateBlack();
+    SerialBT.println("ACK:CAL=BLACK");
+  }
+
+  else if (cmd == "CAL=WHITE") {
+    calibrateWhite();
+    SerialBT.println("ACK:CAL=WHITE");
+  }
+
+  else if (cmd == "TIME?") {
+    SerialBT.println("TIME=" + String(runtime));
+  }
+
+  else {
+    SerialBT.println("ERROR:UNKNOWN_CMD");
+  }
+}
+
 
 void handleBluetooth() {
   if (SerialBT.available()) {
-    
-    char type = SerialBT.read();
 
-    if (type == 'b') {
-      calibrateBlack();
-    } else if (type == 'w') {
-      calibrateWhite();
-    } else {
-      float value = SerialBT.parseFloat();
+    String command = SerialBT.readStringUntil('\n');
+    command.trim();
 
-      switch (type) {
-        case 'p':
-          Kp = value;
-          break;
-        case 'i':
-          Ki = value;
-          break;
-        case 'd':
-          Kd = value;
-          break;
-        case 's':
-          BASE_SPEED = (int)value;
-          break;
-        case 'm':
-          MAX_SPEED = (int)value;
-          break;
-        case 't':
-          if (trackFinished) {
-          SerialBT.printf("Finished the track within:%d\n", (runtime));
-          runtime = 0;
-          trackFinished = false;
-    }
-
-      }
-
-      SerialBT.printf("Updated: P:%.2f I:%.2f D:%.2f Spd:%d\n", Kp, Ki, Kd, BASE_SPEED);
-    }
+    handleCommand(command);
   }
 }
 
@@ -261,26 +284,40 @@ int readMux(int channel) {
   return analogRead(MUX_SIG);
 }
 
+void startRun() {
+  motorRunning = true;
+
+  runStartTime = millis();
+  isTimingBlack = false;
+  integral = 0;
+  lastError = 0;
+  runtime = millis();
+  trackFinished = false;
+
+  SerialBT.println("Robot Started");
+}
+
+void stopRun() {
+  motorRunning = false;
+  driveMotors(0, 0);
+  integral = 0;
+  lastError = 0;
+
+  SerialBT.println("Robot Stopped");
+}
+
+
 // --- Updated Button Checking Function ---
 void checkButtons() {
   // Run/Stop Button
   if (digitalRead(START_BUTTON) == LOW) {
     delay(500);
     if (millis() - lastDebounceTime > debounceDelay) {
-      motorRunning = !motorRunning;
+      if (!motorRunning)
+        startRun();
+      else
+        stopRun();
 
-      //Reset variables on a fresh start ---
-      if (motorRunning) {
-        runStartTime = millis();
-        isTimingBlack = false;
-        integral = 0;
-        lastError = 0;
-        runtime = millis();
-        trackFinished = false;
-
-
-
-      }
 
       lastDebounceTime = millis();
     }
